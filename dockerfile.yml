@@ -1,0 +1,84 @@
+---
+ 
+- name: "building docker image from github repo"
+  hosts: all
+  become: true
+  vars: 
+    packages:
+      - git
+      - python3-pip
+      - docker
+      - screen
+    repo_url: https://github.com/hunter9091/docker-auto.git 
+    clone_dir: "/data"
+    image_name: "hitach/demo-app"
+  tasks:
+ 
+    - name: "installing packages"
+      yum: 
+        name: "{{ packages }}"
+        state: present
+ 
+    - name: "restarting & enabling docker service"
+      service:
+        name: docker
+        state: restarted
+        enabled: true
+ 
+    - name: "creating cloning directory"
+      file:
+        path: "{{ clone_dir }}"
+        state: directory
+ 
+    - name: "cloning from repo"
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ clone_dir }}"
+      register: clone_status
+ 
+    - name: "login to docker hub"
+      when: clone_status.changed
+      docker_login:
+        username: sachin900 
+        password: iam$@CH!N123 
+        state: present
+ 
+    - name: "building docker image and pushing image to dockerhub"
+      when: clone_status.changed
+      docker_image:
+        source: build
+        build:
+          path: "{{ clone_dir }}"
+          pull: yes
+        name: "{{ image_name }}"
+        tag: "{{ item }}"
+        push: true
+        force_tag: yes
+        force_source: yes
+      with_items:
+        - "{{ clone_status.after }}"
+        - latest
+ 
+    - name: "logout from dockerhub"
+      when: clone_status.changed
+      docker_login: 
+        username: sachin900
+        password: iam$@CH!N123 
+        state: absent
+ 
+ 
+    - name: "pulling docker image"
+      docker_image:
+        name: "{{ image_name }}"
+        source: pull
+        force_source: true
+      register: pull_status
+ 
+    - name: "running container"
+      when: pull_status.changed
+      docker_container:
+        name: demo-app
+        image: "{{ image_name }}:latest"
+        recreate: yes
+        pull: yes
+        published_ports: "80:5000"
