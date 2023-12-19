@@ -73,7 +73,7 @@
         source: pull
         force_source: true
       register: pull_status
- 
+    
     - name: "running container"
       when: pull_status.changed
       docker_container:
